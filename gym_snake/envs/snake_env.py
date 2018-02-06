@@ -9,6 +9,7 @@ import gym
 from gym import spaces, logger
 from gym.utils import seeding
 import numpy as np
+from gym_snake.envs.snake_view import SnakeView
 
 class SnakeEnv(gym.Env):
     metadata = {
@@ -17,6 +18,27 @@ class SnakeEnv(gym.Env):
     }
 
     def __init__(self):
+                # Create a 2 dimensional array. A two dimensional
+        # array is simply a list of lists.
+        self.grid = []
+        for row in range(10):
+            # Add an empty array that will hold each cell
+            # in this row
+            self.grid.append([])
+            for column in range(10):
+                self.grid[row].append(0)  # Append a cell
+        
+        # Set row 1, cell 5 to one. (Remember rows and
+        # column numbers start at zero.)
+        self.grid[1][5] = 1
+        self.view = SnakeView()
+
+
+
+
+
+
+
         self.gravity = 9.8
         self.masscart = 1.0
         self.masspole = 0.1
@@ -91,6 +113,7 @@ class SnakeEnv(gym.Env):
         return np.array(self.state)
 
     def render(self, mode='human'):
+        self.view.render(self.grid)
         screen_width = 600
         screen_height = 400
 
