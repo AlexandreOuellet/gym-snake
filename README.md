@@ -14,3 +14,12 @@ hitting yourself
 cd gym-snake
 pip install -e .
 ```
+
+
+# Usage
+
+```python
+import gym
+from gym import wrappers, logger
+import gym_snake
+```
