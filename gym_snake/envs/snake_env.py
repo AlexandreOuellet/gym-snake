@@ -1,7 +1,5 @@
 """
-Classic cart-pole system implemented by Rich Sutton et al.
-Copied from http://incompleteideas.net/sutton/book/code/pole.c
-permalink: https://perma.cc/C9ZM-652R
+Classic snake game
 """
 
 import math
@@ -10,63 +8,97 @@ from gym import spaces, logger
 from gym.utils import seeding
 import numpy as np
 from gym_snake.envs.snake_view import SnakeView
+import queue
 
-class SnakeEnv(gym.Env):
-    metadata = {
-        'render.modes': ['human', 'rgb_array'],
-        'video.frames_per_second' : 50
+MAPS = {
+    "4x4": [
+        "SFFF",
+        "FHFH",
+        "FFFH",
+        "HFFG"
+    ],
+    "10x10": [
+        "SFFFFFFF",
+        "FFFFFFFF",
+        "FFFHFFFF",
+        "FFFFFHFF",
+        "FFFHFFFF",
+        "FHHFFFHF",
+        "FHFFHFHF",
+        "FFFHFFFG"
+    ],
+}
+
+
+LEFT = 0
+DOWN = 1
+RIGHT = 2
+UP = 3
+
+EMPTY = 0
+BODY = 1
+TAIL = 2
+HEAD = 3
+FRUIT = 4
+
+# Define some colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (0, 255, 255)
+BLUE = (0, 0, 255)
+
+COLORS = {
+    EMPTY: WHITE,
+    BODY: BLACK,
+    TAIL: YELLOW,
+    HEAD: WHITE,
+    FRUIT: GREEN,
     }
 
+class Point():
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+class BodyPart(Point):
+    def __init__(self, x, y, character, trail_character):
+        super().__init__(x, y)
+        self.character = character
+        self.trail_character = trail_character
+
+class SnakeEnv(gym.Env):
+    """
+    Winter is here. You and your friends were tossing around a frisbee at the park
+    when you made a wild throw that left the frisbee out in the middle of the lake.
+    The water is mostly frozen, but there are a few holes where the ice has melted.
+    If you step into one of those holes, you'll fall into the freezing water.
+    At this time, there's an international frisbee shortage, so it's absolutely imperative that
+    you navigate across the lake and retrieve the disc.
+    However, the ice is slippery, so you won't always move in the direction you intend.
+    The surface is described using a grid like the following
+
+        0000
+        0134
+        0100
+        0T00
+
+    0 : empty space
+    1 : body of the snake
+    2 : tail of the snake
+    3 : head of the snake
+    4 : fruit
+
+    The episode ends when you fill the screen with the snake, or the head
+    hit anything that is not empty or a fruit.
+    The starting position is random
+    You receive a reward of 1 if you eat a fruit, -1 if you hit something, zero otherwise.
+    """
+
+    metadata = { 'render.modes': ['human', 'ansi'] }
+
     def __init__(self):
-                # Create a 2 dimensional array. A two dimensional
-        # array is simply a list of lists.
-        self.grid = []
-        for row in range(10):
-            # Add an empty array that will hold each cell
-            # in this row
-            self.grid.append([])
-            for column in range(10):
-                self.grid[row].append(0)  # Append a cell
-        
-        # Set row 1, cell 5 to one. (Remember rows and
-        # column numbers start at zero.)
-        self.grid[1][5] = 1
-        self.view = SnakeView()
-
-
-
-
-
-
-
-        self.gravity = 9.8
-        self.masscart = 1.0
-        self.masspole = 0.1
-        self.total_mass = (self.masspole + self.masscart)
-        self.length = 0.5 # actually half the pole's length
-        self.polemass_length = (self.masspole * self.length)
-        self.force_mag = 10.0
-        self.tau = 0.02  # seconds between state updates
-
-        # Angle at which to fail the episode
-        self.theta_threshold_radians = 12 * 2 * math.pi / 360
-        self.x_threshold = 2.4
-
-        # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
-        high = np.array([
-            self.x_threshold * 2,
-            np.finfo(np.float32).max,
-            self.theta_threshold_radians * 2,
-            np.finfo(np.float32).max])
-
-        self.action_space = spaces.Discrete(2)
-        self.observation_space = spaces.Box(-high, high)
-
-        self.seed()
-        self.viewer = None
-        self.state = None
-
-        self.steps_beyond_done = None
+        self.reset()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -74,90 +106,104 @@ class SnakeEnv(gym.Env):
 
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
-        state = self.state
-        x, x_dot, theta, theta_dot = state
-        force = self.force_mag if action==1 else -self.force_mag
-        costheta = math.cos(theta)
-        sintheta = math.sin(theta)
-        temp = (force + self.polemass_length * theta_dot * theta_dot * sintheta) / self.total_mass
-        thetaacc = (self.gravity * sintheta - costheta* temp) / (self.length * (4.0/3.0 - self.masspole * costheta * costheta / self.total_mass))
-        xacc  = temp - self.polemass_length * thetaacc * costheta / self.total_mass
-        x  = x + self.tau * x_dot
-        x_dot = x_dot + self.tau * xacc
-        theta = theta + self.tau * theta_dot
-        theta_dot = theta_dot + self.tau * thetaacc
-        self.state = (x,x_dot,theta,theta_dot)
-        done =  x < -self.x_threshold \
-                or x > self.x_threshold \
-                or theta < -self.theta_threshold_radians \
-                or theta > self.theta_threshold_radians
-        done = bool(done)
+        self.queue.put(action)
 
-        if not done:
-            reward = 1.0
-        elif self.steps_beyond_done is None:
-            # Pole just fell!
-            self.steps_beyond_done = 0
-            reward = 1.0
+        reward = 0
+        canMove, isFruit = self._canMove(self.head, action) # True if you can't move
+        if canMove:
+            self._move(self.head, action)
+            if isFruit:
+                reward = 1
+            else:
+                oldAction = self.queue.get()
+                self._move(self.tail, oldAction)
+            self.state[self.head.y][self.head.x] = self.head.character
         else:
-            if self.steps_beyond_done == 0:
-                logger.warn("You are calling 'step()' even though this environment has already returned done = True. You should always call 'reset()' once you receive 'done = True' -- any further steps are undefined behavior.")
-            self.steps_beyond_done += 1
-            reward = 0.0
+            reward = -1
+        
+        if isFruit:
+            self._spawnFruit()
 
+        done = not canMove
         return np.array(self.state), reward, done, {}
 
+    def _spawnFruit(self):
+        possibilities = []
+        for row in range(0, len(self.state)):
+            for column in range(0, len(self.state[row])):
+                if self.state[row][column] == EMPTY:
+                    possibilities.append([row, column])
+
+        index = self.np_random.randint(0, len(possibilities))
+        row, column = possibilities[index]
+
+        self.state[row][column] = FRUIT
+
+
+    def _move(self, bodyPart: BodyPart, action):
+        destination = self._getDestination(bodyPart, action)
+
+        self.state[bodyPart.y][bodyPart.x] = bodyPart.trail_character
+        self.state[destination.y][destination.x] = bodyPart.character
+
+        bodyPart.x = destination.x
+        bodyPart.y = destination.y
+
+    def _canMove(self, bodyPart: BodyPart, action):
+        destination = self._getDestination(bodyPart, action)
+
+        if destination.x < 0 or destination.x >= self.tile_width:
+            return False, False
+
+        if destination.y < 0 or destination.y >= self.tile_height:
+            return False, False
+
+        canMove = self.state[destination.y][destination.x] in [EMPTY, FRUIT]
+        isFruit = self.state[destination.y][destination.x] in [FRUIT]
+
+        return canMove, isFruit
+
+    def _getDestination(self, bodyPart: BodyPart, action):
+        destination = Point(bodyPart.x, bodyPart.y)
+
+        if action == LEFT:
+            destination.x -= 1
+        if action == RIGHT:
+            destination.x += 1
+
+        if action == UP:
+            destination.y -= 1
+        if action == DOWN:
+            destination.y += 1
+        
+        return destination
+
     def reset(self):
-        self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
-        self.steps_beyond_done = None
-        return np.array(self.state)
+        self.tile_height = self.tile_width = 10
+        self.view = SnakeView(self.tile_width, self.tile_height, COLORS)
 
-    def render(self, mode='human'):
-        self.view.render(self.grid)
-        screen_width = 600
-        screen_height = 400
+        self.action_space = spaces.Discrete(4)
 
-        world_width = self.x_threshold*2
-        scale = screen_width/world_width
-        carty = 100 # TOP OF CART
-        polewidth = 10.0
-        polelen = scale * 1.0
-        cartwidth = 50.0
-        cartheight = 30.0
+        self.state = np.zeros(shape=(self.tile_height, self.tile_width), dtype=np.uint8)
 
-        if self.viewer is None:
-            from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
-            l,r,t,b = -cartwidth/2, cartwidth/2, cartheight/2, -cartheight/2
-            axleoffset =cartheight/4.0
-            cart = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
-            self.carttrans = rendering.Transform()
-            cart.add_attr(self.carttrans)
-            self.viewer.add_geom(cart)
-            l,r,t,b = -polewidth/2,polewidth/2,polelen-polewidth/2,-polewidth/2
-            pole = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
-            pole.set_color(.8,.6,.4)
-            self.poletrans = rendering.Transform(translation=(0, axleoffset))
-            pole.add_attr(self.poletrans)
-            pole.add_attr(self.carttrans)
-            self.viewer.add_geom(pole)
-            self.axle = rendering.make_circle(polewidth/2)
-            self.axle.add_attr(self.poletrans)
-            self.axle.add_attr(self.carttrans)
-            self.axle.set_color(.5,.5,.8)
-            self.viewer.add_geom(self.axle)
-            self.track = rendering.Line((0,carty), (screen_width,carty))
-            self.track.set_color(0,0,0)
-            self.viewer.add_geom(self.track)
+        self.observation_space = spaces.Box(low=0, high=4, shape=(self.tile_height, self.tile_width))
 
-        if self.state is None: return None
+        self.seed()
+        
+        head_x = self.np_random.randint(0, self.tile_width)
+        head_y = self.np_random.randint(0, self.tile_height)
 
-        x = self.state
-        cartx = x[0]*scale+screen_width/2.0 # MIDDLE OF CART
-        self.carttrans.set_translation(cartx, carty)
-        self.poletrans.set_rotation(-x[2])
+        self.tail = BodyPart(head_x, head_y, TAIL, EMPTY)
+        self.head = BodyPart(head_x, head_y, HEAD, BODY)
+        self.queue = queue.Queue()
 
-        return self.viewer.render(return_rgb_array = mode=='rgb_array')
+        self.state[self.head.y][self.head.x] = HEAD
+
+        self._spawnFruit()
+        return self.state
+
+    def render(self):
+        self.view.render(self.state)
 
     def close(self):
-        if self.viewer: self.viewer.close()
+        if self.view: self.view.close()

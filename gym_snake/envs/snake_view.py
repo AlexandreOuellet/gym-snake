@@ -9,12 +9,8 @@
  Explanation video: http://youtu.be/mdTeqiWyFnc
 """
 import pygame
- 
-# Define some colors
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-GREEN = (0, 255, 0)
-RED = (255, 0, 0)
+
+
  
 # This sets the WIDTH and HEIGHT of each grid location
 WIDTH = 20
@@ -27,9 +23,13 @@ MARGIN = 5
 WINDOW_SIZE = [255, 255]
 
 class SnakeView:
-    def __init__(self):        
+    def __init__(self, tile_width, tile_height, tile_colors):        
         # Initialize pygame
         pygame.init()
+
+        self.tile_width = tile_width
+        self.tile_height = tile_height
+        self.tile_colors = tile_colors
  
 
         self.screen = pygame.display.set_mode(WINDOW_SIZE)
@@ -43,16 +43,17 @@ class SnakeView:
  
 # # Used to manage how fast the screen updates
 # clock = pygame.time.Clock()
-    def render(self, grid):
+    def render(self, state):
         # Set the screen background
-        self.screen.fill(BLACK)
+        self.screen.fill((0,0,0))
     
         # Draw the grid
-        for row in range(10):
-            for column in range(10):
-                color = WHITE
-                if grid[row][column] == 1:
-                    color = GREEN
+        for row in range(self.tile_height):
+            for column in range(self.tile_width):
+                element = state[row][column]
+                color = self.tile_colors[element]
+                # if grid[row][column] == 1:
+                #     color = GREEN
                 pygame.draw.rect(self.screen,
                                 color,
                                 [(MARGIN + WIDTH) * column + MARGIN,
@@ -61,44 +62,6 @@ class SnakeView:
                                 HEIGHT])
         # Go ahead and update the screen with what we've drawn.
         pygame.display.flip()
-
-# # -------- Main Program Loop -----------
-# while not done:
-#     for event in pygame.event.get():  # User did something
-#         if event.type == pygame.QUIT:  # If user clicked close
-#             done = True  # Flag that we are done so we exit this loop
-#         elif event.type == pygame.MOUSEBUTTONDOWN:
-#             # User clicks the mouse. Get the position
-#             pos = pygame.mouse.get_pos()
-#             # Change the x/y screen coordinates to grid coordinates
-#             column = pos[0] // (WIDTH + MARGIN)
-#             row = pos[1] // (HEIGHT + MARGIN)
-#             # Set that location to one
-#             grid[row][column] = 1
-#             print("Click ", pos, "Grid coordinates: ", row, column)
- 
-#     # Set the screen background
-#     screen.fill(BLACK)
- 
-#     # Draw the grid
-#     for row in range(10):
-#         for column in range(10):
-#             color = WHITE
-#             if grid[row][column] == 1:
-#                 color = GREEN
-#             pygame.draw.rect(screen,
-#                              color,
-#                              [(MARGIN + WIDTH) * column + MARGIN,
-#                               (MARGIN + HEIGHT) * row + MARGIN,
-#                               WIDTH,
-#                               HEIGHT])
- 
-#     # Limit to 60 frames per second
-#     clock.tick(60)
- 
-#     # Go ahead and update the screen with what we've drawn.
-#     pygame.display.flip()
- 
-# # Be IDLE friendly. If you forget this line, the program will 'hang'
-# # on exit.
-# pygame.quit()
+    
+    def close(self):
+        pygame.quit()
