@@ -10,34 +10,14 @@ import numpy as np
 from gym_snake.envs.snake_view import SnakeView
 import queue
 
-MAPS = {
-    "4x4": [
-        "SFFF",
-        "FHFH",
-        "FFFH",
-        "HFFG"
-    ],
-    "10x10": [
-        "SFFFFFFF",
-        "FFFFFFFF",
-        "FFFHFFFF",
-        "FFFFFHFF",
-        "FFFHFFFF",
-        "FHHFFFHF",
-        "FHFFHFHF",
-        "FFFHFFFG"
-    ],
-}
-
-
 LEFT = 0
 DOWN = 1
 RIGHT = 2
 UP = 3
 
 EMPTY = 0
-BODY = 1
-TAIL = 2
+BODY = 2
+TAIL = 1
 HEAD = 3
 FRUIT = 4
 
@@ -50,10 +30,10 @@ YELLOW = (0, 255, 255)
 BLUE = (0, 0, 255)
 
 COLORS = {
-    EMPTY: WHITE,
-    BODY: BLACK,
+    EMPTY: BLACK,
+    BODY: WHITE,
     TAIL: YELLOW,
-    HEAD: WHITE,
+    HEAD: BLUE,
     FRUIT: GREEN,
     }
 
@@ -99,10 +79,40 @@ class SnakeEnv(gym.Env):
 
     def __init__(self):
         self.reset()
+    
+    def reset(self):
+        self.seed()
+
+        self.tile_height = self.tile_width = 10
+        self.view = SnakeView(self.tile_width, self.tile_height, COLORS)
+
+        self.action_space = spaces.Discrete(4)
+
+        self.state = np.zeros(shape=(self.tile_height, self.tile_width), dtype=np.uint8)
+
+        self.observation_space = spaces.Box(low=0, high=4, shape=(self.tile_height, self.tile_width))
+        
+        head_x = self.np_random.randint(0, self.tile_width)
+        head_y = self.np_random.randint(0, self.tile_height)
+
+        self.tail = BodyPart(head_x, head_y, TAIL, EMPTY)
+        self.head = BodyPart(head_x, head_y, HEAD, BODY)
+        self.queue = queue.Queue()
+
+        self.state[self.head.y][self.head.x] = HEAD
+
+        self._spawnFruit()
+        return self.state
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
+
+    def render(self):
+        self.view.render(self.state)
+
+    def close(self):
+        if self.view: self.view.close()
 
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
@@ -177,33 +187,3 @@ class SnakeEnv(gym.Env):
             destination.y += 1
         
         return destination
-
-    def reset(self):
-        self.tile_height = self.tile_width = 10
-        self.view = SnakeView(self.tile_width, self.tile_height, COLORS)
-
-        self.action_space = spaces.Discrete(4)
-
-        self.state = np.zeros(shape=(self.tile_height, self.tile_width), dtype=np.uint8)
-
-        self.observation_space = spaces.Box(low=0, high=4, shape=(self.tile_height, self.tile_width))
-
-        self.seed()
-        
-        head_x = self.np_random.randint(0, self.tile_width)
-        head_y = self.np_random.randint(0, self.tile_height)
-
-        self.tail = BodyPart(head_x, head_y, TAIL, EMPTY)
-        self.head = BodyPart(head_x, head_y, HEAD, BODY)
-        self.queue = queue.Queue()
-
-        self.state[self.head.y][self.head.x] = HEAD
-
-        self._spawnFruit()
-        return self.state
-
-    def render(self):
-        self.view.render(self.state)
-
-    def close(self):
-        if self.view: self.view.close()
