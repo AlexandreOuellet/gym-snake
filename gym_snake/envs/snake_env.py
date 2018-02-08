@@ -78,19 +78,18 @@ class SnakeEnv(gym.Env):
     metadata = { 'render.modes': ['human', 'ansi'] }
 
     def __init__(self):
+        self.reward_range = [-1, 1]
+        self.tile_height = self.tile_width = 10
+        self.view = SnakeView(self.tile_width, self.tile_height, COLORS)
+        self.action_space = spaces.Discrete(4)
+        self.observation_space = spaces.Box(low=0, high=4, shape=(self.tile_height, self.tile_width), dtype=np.uint8)
+
         self.reset()
     
     def reset(self):
         self.seed()
 
-        self.tile_height = self.tile_width = 10
-        self.view = SnakeView(self.tile_width, self.tile_height, COLORS)
-
-        self.action_space = spaces.Discrete(4)
-
         self.state = np.zeros(shape=(self.tile_height, self.tile_width), dtype=np.uint8)
-
-        self.observation_space = spaces.Box(low=0, high=4, shape=(self.tile_height, self.tile_width))
         
         head_x = self.np_random.randint(0, self.tile_width)
         head_y = self.np_random.randint(0, self.tile_height)
